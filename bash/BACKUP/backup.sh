@@ -2,6 +2,7 @@
 
 USE_DEFAULT=true
 BACKUP_SOURCES=("/backup_archive.bz2" "/backup_file.txt" "/backup_folder")
+REMOTE="gdrive"
 FILES=()
 
 while [[ $# -gt 0 ]]; do
@@ -14,12 +15,37 @@ while [[ $# -gt 0 ]]; do
                 shift
             done
             ;;
+        -r)
+            shift
+            if [[ -z "$1" ]]; then
+                echo "Error: -r requires a remote name" >&2
+                exit 1
+            fi
+            REMOTE=$1
+            shift
+        ;;
+        -h|--help)
+            show_help
+        ;;
         *)
             echo "Unknown option: $1"
+            show_help
             exit 1
             ;;
     esac
 done
+
+show_help() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "-f    Files to upload (default files are included in the script)"
+    echo "-r    Rclone remote (default is gdrive)"
+    echo -e "  --help, -h          Show this help message\n"
+    echo "Example:"
+    echo -e "  $0 -f ./file1 ./file2 -r gdrive        Upload file1, file2 to gdrive rclone remote"
+	echo ""
+    exit 0
+}
 
 check_backup_sorce() {
     local backup_sources=("$@")
@@ -73,13 +99,13 @@ upload_to_drive() {
     local file="$1"
 
     local gdrive_free_space
-    gdrive_free_space=$(rclone about gdrive: | awk 'NR==3 {print $2 $3}')
+    gdrive_free_space=$(rclone about "$REMOTE": | awk 'NR==3 {print $2 $3}')
 
     local files_size
     files_size=$(du -h "$file" | awk '{print $1}')
 
     if (( $(convert_to_bytes "$gdrive_free_space") > $(convert_to_bytes "$files_size") )); then
-        rclone copy "$file" gdrive:backup_folder
+        rclone copy "$file" "$REMOTE:backup_folder"
         echo "Backup done!"
     else
         echo "Error: Files can't be uploaded" >&2
